@@ -1,32 +1,86 @@
-async function fetchMSFT() {
-    try {
-        // שימוש ב-API של Finnhub או דומה הוא יציב יותר ל-CORS
-        // כאן נשתמש ב-Alphavantage (דורש מפתח חינמי) או בשיטת ה-Proxy:
-        const proxyUrl = "https://corsproxy.io/?";
-        const targetUrl = "https://query1.finance.yahoo.com/v8/finance/chart/MSFT";
-        
-        const response = await fetch(proxyUrl + encodeURIComponent(targetUrl));
-        const data = await response.json();
-        
-        const price = data.chart.result[0].meta.regularMarketPrice;
-        const currency = data.chart.result[0].meta.currency;
-        
-        document.getElementById('msft-price').innerHTML = `${price.toFixed(2)} <span class="currency">${currency}</span>`;
-    } catch (error) {
-        console.error("Error fetching MSFT:", error);
-        // פתרון גיבוי למקרה שהפרוקסי עמוס - שימוש ב-API אלטרנטיבי
-        fetchMSFTBackup();
-    }
-}
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard פיננסי - MSFT & USD/ILS</title>
+    <style>
+        :root {
+            --bg: #0b0e14;
+            --card: #161b22;
+            --accent: #58a6ff;
+            --text: #c9d1d9;
+            --success: #3fb950;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: var(--card);
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid #30363d;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            width: 350px;
+        }
+        h1 { font-size: 1.5rem; text-align: center; color: var(--accent); margin-top: 0; }
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            border-bottom: 1px solid #30363d;
+        }
+        .data-row:last-of-type { border-bottom: none; }
+        .label { font-size: 0.9rem; color: #8b949e; }
+        .value { font-size: 1.4rem; font-weight: bold; }
+        .footer {
+            font-size: 0.75rem;
+            text-align: center;
+            margin-top: 20px;
+            color: #484f58;
+        }
+    </style>
+</head>
+<body>
 
-async function fetchMSFTBackup() {
-    try {
-        // פתרון נוסף דרך שירות שנקרא Open Exchange Rates או דומיו
-        const res = await fetch('https://open.er-api.com/v6/latest/USD');
-        const data = await res.json();
-        // הערה: זה ייתן לך רק מט"ח, למניות עדיף מפתח API חינמי
-        console.log("יש צורך במפתח API למנייה לטווח ארוך");
-    } catch (e) {
-        document.getElementById('msft-price').innerText = "שגיאה בחיבור";
-    }
-}
+<div class="container">
+    <h1>מעקב נתונים חי</h1>
+    
+    <div class="data-row">
+        <span class="label">מיקרוסופט (MSFT)</span>
+        <span class="value" id="msft-price">--.--</span>
+    </div>
+
+    <div class="data-row">
+        <span class="label">דולר / שקל</span>
+        <span class="value" id="usd-ils">--.--</span>
+    </div>
+
+    <div class="footer" id="last-update">
+        מנסה להתחבר לשרת...
+    </div>
+</div>
+
+<script>
+    // --- הגדרות ---
+    const FINNHUB_KEY = 'כאן_מדביקים_את_המפתח_שלך'; // <--- תדביק את המפתח שקיבלת כאן
+    
+    async function updateDashboard() {
+        try {
+            // 1. הבאת מחיר מניה מ-Finnhub (פתרון קבוע ל-CORS)
+            const stockRes = await fetch(`https://finnhub.io/api/v1/quote?symbol=MSFT&token=${FINNHUB_KEY}`);
+            const stockData = await stockRes.json();
+            
+            if (stockData.c) {
+                document.getElementById('msft-price').innerText = `$${stockData.c.toFixed(2)}`;
+            }
+
+            // 2.
