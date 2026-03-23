@@ -3,84 +3,180 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard פיננסי - MSFT & USD/ILS</title>
+    <title>Tech & FX Dashboard</title>
     <style>
         :root {
-            --bg: #0b0e14;
+            --bg: #0d1117;
             --card: #161b22;
             --accent: #58a6ff;
             --text: #c9d1d9;
             --success: #3fb950;
+            --danger: #f85149;
+            --border: #30363d;
         }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
             background-color: var(--bg);
             color: var(--text);
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
         }
+
         .container {
             background: var(--card);
             padding: 2rem;
-            border-radius: 12px;
-            border: 1px solid #30363d;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-            width: 350px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.6);
+            width: 100%;
+            max-width: 400px;
         }
-        h1 { font-size: 1.5rem; text-align: center; color: var(--accent); margin-top: 0; }
+
+        h1 { font-size: 1.5rem; text-align: center; color: var(--accent); margin-bottom: 1.5rem; }
+
         .data-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 15px 0;
-            border-bottom: 1px solid #30363d;
+            padding: 18px 12px;
+            border-bottom: 1px solid var(--border);
+            border-radius: 8px;
+            transition: background 0.6s ease;
+            margin-bottom: 4px;
         }
-        .data-row:last-of-type { border-bottom: none; }
-        .label { font-size: 0.9rem; color: #8b949e; }
-        .value { font-size: 1.4rem; font-weight: bold; }
-        .footer {
-            font-size: 0.75rem;
-            text-align: center;
-            margin-top: 20px;
-            color: #484f58;
+
+        .data-row:last-of-type { border-bottom: none; margin-top: 10px; border-top: 2px solid var(--accent); border-radius: 0; }
+
+        .label { font-size: 1rem; font-weight: 500; }
+        .value-container { display: flex; flex-direction: column; align-items: flex-end; }
+        .price { font-size: 1.4rem; font-weight: 800; font-family: 'Courier New', monospace; }
+        .percent { font-size: 0.9rem; font-weight: bold; margin-top: 4px; }
+
+        .up { color: var(--success); }
+        .down { color: var(--danger); }
+
+        /* אפקטי הבהוב בעדכון */
+        .flash-up { background-color: rgba(63, 185, 80, 0.15) !important; }
+        .flash-down { background-color: rgba(248, 81, 73, 0.15) !important; }
+
+        .controls { margin-top: 30px; text-align: center; }
+        
+        button {
+            background: transparent;
+            color: var(--accent);
+            border: 1.5px solid var(--accent);
+            padding: 12px 24px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s;
         }
+
+        button:hover { background: rgba(88, 166, 255, 0.1); transform: translateY(-2px); }
+        button:active { transform: translateY(0); }
+
+        .footer { font-size: 0.8rem; text-align: center; margin-top: 20px; color: #484f58; }
+
+        @keyframes spin { 100% { transform: rotate(-360deg); } }
+        .spinning { animation: spin 1s linear infinite; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>מעקב נתונים חי</h1>
+    <h1>מעקב טכנולוגיה ומט"ח</h1>
     
-    <div class="data-row">
-        <span class="label">מיקרוסופט (MSFT)</span>
-        <span class="value" id="msft-price">--.--</span>
-    </div>
+    <div id="stocks-list"></div>
 
     <div class="data-row">
-        <span class="label">דולר / שקל</span>
-        <span class="value" id="usd-ils">--.--</span>
+        <span class="label">USD / ILS</span>
+        <div class="value-container">
+            <span class="price" id="usd-ils">--.--</span>
+        </div>
     </div>
 
-    <div class="footer" id="last-update">
-        מנסה להתחבר לשרת...
+    <div class="controls">
+        <button onclick="updateDashboard()">
+            <span id="refresh-icon" style="display:inline-block">🔄</span> רענן נתונים
+        </button>
     </div>
+
+    <div class="footer" id="last-update">מאתחל חיבור...</div>
 </div>
 
 <script>
     // --- הגדרות ---
-    const FINNHUB_KEY = 'כאן_מדביקים_את_המפתח_שלך'; // <--- תדביק את המפתח שקיבלת כאן
-    
+    const FINNHUB_KEY = 'd70khe9r01ql6rnvkon0d70khe9r01ql6rnvkong'; // הדבקתי עבורך את המפתח ששלחת
+    const symbols = { 'MSFT': 'Microsoft', 'GOOGL': 'Google', 'META': 'Meta' };
+
+    // יצירת ממשק המניות
+    const list = document.getElementById('stocks-list');
+    Object.keys(symbols).forEach(s => {
+        list.innerHTML += `
+            <div class="data-row" id="row-${s}">
+                <span class="label">${symbols[s]}</span>
+                <div class="value-container">
+                    <span class="price" id="price-${s}">--.--</span>
+                    <span class="percent" id="perc-${s}">0.00%</span>
+                </div>
+            </div>`;
+    });
+
     async function updateDashboard() {
+        const icon = document.getElementById('refresh-icon');
+        icon.classList.add('spinning');
+
         try {
-            // 1. הבאת מחיר מניה מ-Finnhub (פתרון קבוע ל-CORS)
-            const stockRes = await fetch(`https://finnhub.io/api/v1/quote?symbol=MSFT&token=${FINNHUB_KEY}`);
-            const stockData = await stockRes.json();
-            
-            if (stockData.c) {
-                document.getElementById('msft-price').innerText = `$${stockData.c.toFixed(2)}`;
+            // 1. עדכון מניות
+            for (let s of Object.keys(symbols)) {
+                const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${s}&token=${FINNHUB_KEY}`);
+                const data = await res.json();
+
+                if (data.c) {
+                    const priceElem = document.getElementById(`price-${s}`);
+                    const percElem = document.getElementById(`perc-${s}`);
+                    const row = document.getElementById(`row-${s}`);
+
+                    const changePercent = ((data.c - data.pc) / data.pc * 100).toFixed(2);
+                    const isUp = changePercent >= 0;
+
+                    priceElem.innerText = `$${data.c.toFixed(2)}`;
+                    percElem.innerText = `${isUp ? '▲' : '▼'} ${isUp ? '+' : ''}${changePercent}%`;
+                    percElem.className = `percent ${isUp ? 'up' : 'down'}`;
+
+                    // אפקט ויזואלי של עדכון
+                    row.classList.add(isUp ? 'flash-up' : 'flash-down');
+                    setTimeout(() => row.classList.remove('flash-up', 'flash-down'), 800);
+                }
             }
 
-            // 2.
+            // 2. עדכון שער הדולר
+            const forexRes = await fetch('https://open.er-api.com/v6/latest/USD');
+            const forexData = await forexRes.json();
+            document.getElementById('usd-ils').innerText = `₪${forexData.rates.ILS.toFixed(3)}`;
+
+            // 3. חותמת זמן
+            document.getElementById('last-update').innerText = `עדכון אחרון: ${new Date().toLocaleTimeString('he-IL')}`;
+
+        } catch (error) {
+            console.error("שגיאה בעדכון:", error);
+            document.getElementById('last-update').innerText = "שגיאה בחיבור לנתונים";
+        } finally {
+            setTimeout(() => icon.classList.remove('spinning'), 600);
+        }
+    }
+
+    // הפעלה ראשונית וקביעת טיימר
+    updateDashboard();
+    setInterval(updateDashboard, 60000);
+</script>
+
+</body>
+</html>
